@@ -1,138 +1,376 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tokyo Ramen Experience</title>
-  <style>
-    /* General Reset */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      font-family: "Helvetica Neue", sans-serif;
-      background: linear-gradient(135deg, #0d0d0d, #1c1c1c);
-      color: white;
-      overflow-x: hidden;
-    }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Tokyo Ramen — Liquid Glass</title>
+<style>
+  :root {
+    --accent: #ffd166;
+    --accent-2: #ff6b6b;
+    --bg: #0b0b0f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:#f3f3f3; font-family: ui-sans-serif, -apple-system, "SF Pro Text", Inter, Helvetica, Arial, sans-serif; }
+  #app { position:fixed; inset:0; overflow:hidden; }
+  canvas { display:block; }
 
-    /* Liquid Glass Effect (Reusable Class) */
-    .glass {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    }
+  /* HUD text overlay (DOM), kept minimal so 3D glass is the star */
+  .hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    display: grid;
+    place-items: center;
+    padding: clamp(12px, 2vw, 28px);
+  }
+  .stack {
+    text-align:center;
+    line-height:1.15;
+    filter: drop-shadow(0 10px 24px rgba(0,0,0,0.35));
+    user-select: none;
+  }
+  .title {
+    font-weight: 800;
+    font-size: clamp(36px, 6vw, 76px);
+    letter-spacing: 0.01em;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .kicker {
+    margin-top: 8px;
+    font-size: clamp(14px, 1.6vw, 18px);
+    opacity: 0.85;
+  }
+  .footer {
+    position: fixed; inset: auto 0 10px 0; text-align:center; font-size: 12px; opacity: .6; pointer-events:none;
+  }
 
-    /* Hero Section */
-    .hero {
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-      flex-direction: column;
-      background: url('https://images.unsplash.com/photo-1589308078055-4c77dbe3ab65?auto=format&fit=crop&w=1600&q=80') center/cover no-repeat;
-      position: relative;
-    }
-    .overlay {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.4);
-    }
-    .hero-content {
-      position: relative;
-      z-index: 2;
-      padding: 3rem;
-    }
-    .hero h1 {
-      font-size: 4rem;
-      background: linear-gradient(90deg, #ffcc70, #ff8177);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      animation: glow 4s infinite alternate;
-    }
-    @keyframes glow {
-      0% { text-shadow: 0 0 10px rgba(255,200,100,0.7); }
-      100% { text-shadow: 0 0 40px rgba(255,100,100,1); }
-    }
-
-    /* Glass Button */
-    .glass-btn {
-      margin-top: 2rem;
-      padding: 1rem 2rem;
-      font-size: 1.2rem;
-      cursor: pointer;
-      transition: all 0.4s ease;
-    }
-    .glass-btn:hover {
-      transform: scale(1.1);
-      background: rgba(255,255,255,0.25);
-    }
-
-    /* Section */
-    .section {
-      padding: 5rem 2rem;
-      text-align: center;
-    }
-    .card {
-      max-width: 600px;
-      margin: 2rem auto;
-      padding: 2rem;
-      animation: float 6s ease-in-out infinite;
-    }
-    @keyframes float {
-      0% { transform: translateY(0px); }
-      50% { transform: translateY(-10px); }
-      100% { transform: translateY(0px); }
-    }
-
-    /* Footer */
-    footer {
-      padding: 2rem;
-      text-align: center;
-      font-size: 0.9rem;
-      opacity: 0.6;
-    }
-  </style>
+  /* Accessibility focus ring for the 3D button (we mirror focus from a hidden button) */
+  .sr-btn {
+    position: fixed; left:-9999px; top:-9999px;
+  }
+</style>
 </head>
 <body>
-  <!-- Hero -->
-  <section class="hero">
-    <div class="overlay"></div>
-    <div class="hero-content glass">
-      <h1>Tokyo Ramen</h1>
-      <p>Experience authentic Japanese ramen in the heart of Tokyo 🍜</p>
-      <button class="glass glass-btn">Reserve Now</button>
-    </div>
-  </section>
+<div id="app"></div>
 
-  <!-- Ramen Section -->
-  <section class="section">
-    <div class="card glass">
-      <h2>Our Signature Tonkotsu</h2>
-      <p>Creamy pork broth simmered for 12 hours, served with handmade noodles, soft-boiled egg, and tender chashu pork slices.</p>
-    </div>
-    <div class="card glass">
-      <h2>Shoyu Ramen</h2>
-      <p>Classic soy-based ramen with rich umami flavor, fresh scallions, and marinated bamboo shoots.</p>
-    </div>
-  </section>
+<!-- Minimal HUD text (non-glass) so refraction is obvious behind glass panels -->
+<div class="hud">
+  <div class="stack">
+    <div class="title">Tokyo Ramen</div>
+    <div class="kicker">Authentic bowls in Shinjuku — silky broth, hand-pulled noodles, late night vibes</div>
+  </div>
+</div>
+<div class="footer">© 2025 Tokyo Ramen — Liquid Glass Demo</div>
 
-  <!-- Visit Section -->
-  <section class="section glass">
-    <h2>Visit Us</h2>
-    <p>Shinjuku, Tokyo – Open Daily 11AM - 11PM</p>
-    <button class="glass glass-btn">Get Directions</button>
-  </section>
+<!-- Hidden accessible button to mirror interactions to 3D glass button -->
+<button id="srReserve" class="sr-btn" aria-label="Reserve a table">Reserve</button>
 
-  <!-- Footer -->
-  <footer>
-    © 2025 Tokyo Ramen | Designed with 🍜 + ❤️
-  </footer>
+<script type="module">
+/**
+ * Liquid Glass Tokyo Ramen — Three.js
+ * - Real refraction via MeshPhysicalMaterial (transmission)
+ * - HDR environment for reflections
+ * - Animated “liquid” surface via vertex noise + normal map
+ * - Glass panels & a 3D rounded-rect button with hover/click
+ * - Fullscreen background image behind the glass
+ */
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js";
+import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/OrbitControls.js";
+import { RGBELoader } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/RGBELoader.js";
+import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/loaders/GLTFLoader.js"; // (not used but kept for easy extension)
+import { GUI } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/libs/lil-gui.module.min.js";
+
+const app = document.getElementById("app");
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference:"high-performance", alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 0.8, 3.2);
+
+// Controls (toggle on for debugging)
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enabled = false; // set true if you want to orbit
+
+// LIGHT (subtle — reflections come from environment)
+scene.add(new THREE.HemisphereLight(0xffffff, 0x080820, 0.4));
+const dir = new THREE.DirectionalLight(0xffffff, 0.4);
+dir.position.set(3, 4, 5);
+scene.add(dir);
+
+// --- BACKGROUND IMAGE (Tokyo street) ---
+const bgGroup = new THREE.Group();
+scene.add(bgGroup);
+
+// Big quad with a photographic background
+const bgTex = new THREE.TextureLoader().load(
+  // Unsplash Tokyo night alley (free)
+  "https://images.unsplash.com/photo-1554797589-7241bb691973?q=80&w=1920&auto=format&fit=crop"
+);
+bgTex.colorSpace = THREE.SRGBColorSpace;
+bgTex.anisotropy = 8;
+
+const bgGeo = new THREE.PlaneGeometry(16, 9);
+const bgMat = new THREE.MeshBasicMaterial({ map: bgTex });
+const bgMesh = new THREE.Mesh(bgGeo, bgMat);
+bgMesh.position.set(0, 0, -6.5);
+bgGroup.add(bgMesh);
+
+// Scale background to maintain cover behavior
+function sizeBackground() {
+  const aspect = window.innerWidth / window.innerHeight;
+  const targetAspect = 16/9;
+  const scale = aspect > targetAspect ? aspect / targetAspect : 1;
+  bgMesh.scale.setScalar(scale * 1.1);
+}
+sizeBackground();
+
+// --- ENVIRONMENT (HDR) for reflections/refraction ---
+let envMap = null;
+await new Promise((resolve) => {
+  new RGBELoader()
+    .setPath("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r152/examples/textures/equirectangular/")
+    .load("royal_esplanade_1k.hdr", (hdr) => {
+      hdr.mapping = THREE.EquirectangularReflectionMapping;
+      envMap = hdr;
+      scene.environment = envMap;
+      resolve();
+    });
+});
+
+// --- NORMAL MAP for “liquid” micro details ---
+const normalMap = new THREE.TextureLoader().load(
+  "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r152/examples/textures/water/Water_1_M_Normal.jpg"
+);
+normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
+normalMap.repeat.set(2,2);
+
+// --- LIQUID GLASS MATERIAL (physical, transmissive) ---
+function makeGlassMaterial({
+  ior = 1.48,
+  thickness = 0.6,
+  transmission = 1.0,
+  roughness = 0.06,
+  clearcoat = 1.0,
+  clearcoatRoughness = 0.04,
+  chromaIridescence = 0.15
+} = {}) {
+  const mat = new THREE.MeshPhysicalMaterial({
+    transmission,               // enables refraction
+    ior,                        // index of refraction
+    thickness,                  // for refraction path length
+    roughness,
+    metalness: 0.0,
+    clearcoat,
+    clearcoatRoughness,
+    reflectivity: 0.2,
+    envMapIntensity: 1.0,
+    normalMap,
+    normalScale: new THREE.Vector2(0.3, 0.3),
+    iridescence: chromaIridescence,
+    iridescenceIOR: 1.3,
+    iridescenceThicknessRange: [100, 350] // subtle, gives color fringing at grazing angles
+  });
+  return mat;
+}
+
+// --- HELPERS: Liquid geometries ---
+const group = new THREE.Group();
+scene.add(group);
+
+// 1) Big liquid blob (hero glass)
+const blobGeo = new THREE.IcosahedronGeometry(0.9, 6);
+const blobMat = makeGlassMaterial({ thickness: 1.1, roughness: 0.04, ior: 1.5, clearcoatRoughness: 0.03 });
+const blob = new THREE.Mesh(blobGeo, blobMat);
+blob.position.set(-0.8, 0.15, 0);
+group.add(blob);
+
+// 2) Text pane (glass panel behind copy)
+const panelGeo = new THREE.PlaneGeometry(1.9, 0.9, 64, 64);
+const panelMat = makeGlassMaterial({ thickness: 0.5, roughness: 0.07, ior: 1.48 });
+const panel = new THREE.Mesh(panelGeo, panelMat);
+panel.position.set(0.65, -0.05, 0.05);
+panel.rotation.set(0, 0.08, 0.02);
+group.add(panel);
+
+// 3) Glass “Reserve” button (rounded rectangle in 3D)
+const roundedRectShape = (w, h, r) => {
+  const s = new THREE.Shape();
+  const x = -w/2, y = -h/2;
+  s.moveTo(x + r, y);
+  s.lineTo(x + w - r, y);
+  s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + h - r);
+  s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  s.lineTo(x + r, y + h);
+  s.quadraticCurveTo(x, y + h, x, y + h - r);
+  s.lineTo(x, y + r);
+  s.quadraticCurveTo(x, y, x + r, y);
+  return s;
+};
+const buttonShape = roundedRectShape(0.9, 0.32, 0.16);
+const buttonGeo = new THREE.ExtrudeGeometry(buttonShape, { depth: 0.05, bevelEnabled: true, bevelSegments: 8, steps: 1, bevelSize: 0.02, bevelThickness: 0.02 });
+buttonGeo.center();
+const buttonMat = makeGlassMaterial({ thickness: 0.35, roughness: 0.05, ior: 1.46 });
+const button = new THREE.Mesh(buttonGeo, buttonMat);
+button.position.set(0.65, -0.72, 0.15);
+button.rotation.set(-0.04, 0.11, 0.02);
+group.add(button);
+
+// Button label (floating emissive text-like plane so it refracts “inside”)
+const labelCanvas = document.createElement('canvas');
+labelCanvas.width = 512; labelCanvas.height = 128;
+const lctx = labelCanvas.getContext('2d');
+function drawLabel(text="Reserve Now →") {
+  lctx.clearRect(0,0,labelCanvas.width,labelCanvas.height);
+  lctx.font = "700 64px -apple-system, Inter, Helvetica, Arial, sans-serif";
+  lctx.textAlign = "center"; lctx.textBaseline = "middle";
+  const grd = lctx.createLinearGradient(0,0,labelCanvas.width,0);
+  grd.addColorStop(0, "#ffd166"); grd.addColorStop(1, "#ff6b6b");
+  lctx.fillStyle = grd;
+  lctx.fillText(text, labelCanvas.width/2, labelCanvas.height/2);
+}
+drawLabel();
+const labelTex = new THREE.CanvasTexture(labelCanvas);
+labelTex.colorSpace = THREE.SRGBColorSpace;
+const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, opacity: 0.95 });
+const labelPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.18), labelMat);
+labelPlane.position.copy(button.position).add(new THREE.Vector3(0, 0.003, 0.04));
+group.add(labelPlane);
+
+// Subtle particle sparkles (adds depth to refraction)
+const sparkGeom = new THREE.BufferGeometry();
+const COUNT = 400;
+const positions = new Float32Array(COUNT * 3);
+for (let i=0;i<COUNT;i++){
+  positions[i*3+0] = (Math.random()-0.5)*6.0;
+  positions[i*3+1] = (Math.random()-0.2)*3.5;
+  positions[i*3+2] = (Math.random()-0.5)*2.0 - 0.5;
+}
+sparkGeom.setAttribute('position', new THREE.BufferAttribute(positions,3));
+const sparkMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.01, transparent:true, opacity:0.25 });
+const sparkles = new THREE.Points(sparkGeom, sparkMat);
+scene.add(sparkles);
+
+// --- ANIMATION: liquid wobble (vertex noise) ---
+const tmpVec = new THREE.Vector3();
+function wobble(mesh, t, freq=0.8, amp=0.02) {
+  const pos = mesh.geometry.attributes.position;
+  const count = pos.count;
+  for (let i=0;i<count;i++){
+    tmpVec.fromBufferAttribute(pos, i);
+    const n = Math.sin(tmpVec.x*freq + t*1.5) + Math.cos(tmpVec.y*freq*1.3 + t*1.2) + Math.sin(tmpVec.z*freq*0.7 + t*0.9);
+    pos.setXYZ(i, tmpVec.x + (n*0.33)*amp, tmpVec.y + (n*0.27)*amp, tmpVec.z + (n*0.21)*amp);
+  }
+  pos.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+}
+// Separate wobble for the panel (less intense)
+function ripple(mesh, t, freq=2.0, amp=0.006) {
+  const pos = mesh.geometry.attributes.position;
+  const count = pos.count;
+  for (let i=0;i<count;i++){
+    const x = pos.getX(i), y = pos.getY(i);
+    const n = Math.sin(x*freq + t*1.1) + Math.cos(y*freq*1.2 + t*1.3);
+    pos.setZ(i, (n*0.5)*amp);
+  }
+  pos.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+}
+
+// --- INTERACTION: hover & click on 3D button ---
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2(-10,-10);
+let hover = false;
+
+renderer.domElement.addEventListener("pointermove", (e)=>{
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+});
+renderer.domElement.addEventListener("pointerleave", ()=>{ hover = false; mouse.set(-10,-10); });
+
+renderer.domElement.addEventListener("click", ()=>{
+  if (hover) {
+    // Simulate a reserve action (you can replace with real link)
+    alert("🍜 Reserved! See you in Shinjuku.");
+  }
+});
+const srReserve = document.getElementById('srReserve');
+srReserve.addEventListener('focus', ()=>{ /* could add a visible indicator if desired */ });
+
+// --- RESPONSIVE ---
+window.addEventListener("resize", onResize);
+function onResize(){
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  sizeBackground();
+}
+onResize();
+
+// --- (Optional) Tweak panel via GUI. Toggle by pressing 'g' ---
+let gui = null;
+window.addEventListener('keydown', (e)=>{
+  if (e.key.toLowerCase() === 'g') {
+    if (!gui) {
+      gui = new GUI();
+      const f1 = gui.addFolder('Material (hero blob)');
+      f1.add(blob.material, 'roughness', 0, 0.3, 0.001);
+      f1.add(blob.material, 'thickness', 0.0, 2.0, 0.01);
+      f1.add(blob.material, 'ior', 1.0, 2.2, 0.001);
+      f1.add(blob.material, 'envMapIntensity', 0, 3, 0.01);
+      f1.open();
+    } else {
+      gui._hidden ? gui.show() : gui.hide();
+    }
+  }
+});
+
+// --- RENDER LOOP ---
+let t0 = performance.now();
+function render() {
+  const t = (performance.now() - t0) / 1000;
+
+  // animate normal map scrolling (micro liquid flow)
+  normalMap.offset.x = (t*0.03) % 1;
+  normalMap.offset.y = (t*0.025) % 1;
+
+  wobble(blob, t, 1.1, 0.018);
+  ripple(panel, t, 3.2, 0.008);
+
+  // gentle group motion (parallax)
+  group.rotation.y = Math.sin(t*0.25) * 0.08;
+  group.position.y = Math.sin(t*0.9) * 0.03;
+
+  // raycast for hover
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObject(button, false);
+  const isHover = hits.length > 0;
+  if (isHover !== hover) {
+    hover = isHover;
+    // accent the button when hovered
+    button.material.roughness = hover ? 0.025 : 0.05;
+    button.material.thickness = hover ? 0.5 : 0.35;
+    labelPlane.scale.setScalar(hover ? 1.06 : 1.0);
+    document.body.style.cursor = hover ? "pointer" : "default";
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(render);
+}
+render();
+</script>
 </body>
 </html>
